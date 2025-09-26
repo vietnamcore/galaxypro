@@ -2,156 +2,101 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Planet Orbit Gallery</title>
+  <title>3D Planet Orbit (Three.js)</title>
   <style>
-    body {
-      margin: 0;
-      background: black;
-      overflow: hidden;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      perspective: 1200px;
-      font-family: Arial, sans-serif;
-      color: white;
-    }
-
-    /* Container cho toàn cảnh */
-    #scene {
-      width: 1000px;
-      height: 1000px;
-      position: relative;
-      transform-style: preserve-3d;
-      transform: scale(0.1) translateZ(-2000px);
-      animation: introZoom 4s ease-out forwards;
-    }
-
-    @keyframes introZoom {
-      0%   { transform: scale(0.1) translateZ(-2000px) rotateX(30deg); }
-      100% { transform: scale(1) translateZ(0) rotateX(0deg); }
-    }
-
-    /* Hành tinh chính */
-    #planet {
-      width: 200px;
-      height: 200px;
-      border-radius: 50%;
-      background: url('https://upload.wikimedia.org/wikipedia/commons/9/97/The_Earth_seen_from_Apollo_17.jpg') no-repeat center/cover;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      box-shadow: 0 0 40px rgba(0,255,255,0.8);
-      animation: spinPlanet 20s linear infinite;
-    }
-
-    @keyframes spinPlanet {
-      from { transform: translate(-50%, -50%) rotateY(0deg); }
-      to   { transform: translate(-50%, -50%) rotateY(360deg); }
-    }
-
-    /* Orbit container */
-    .orbit {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform-style: preserve-3d;
-      animation: spinOrbit 30s linear infinite;
-    }
-
-    @keyframes spinOrbit {
-      from { transform: rotateY(0deg); }
-      to   { transform: rotateY(360deg); }
-    }
-
-    /* Các ảnh nhỏ (hành tinh vệ tinh) */
-    .orbit img {
-      position: absolute;
-      width: 80px;
-      height: 80px;
-      border-radius: 50%;
-      object-fit: cover;
-      box-shadow: 0 0 20px rgba(255,255,255,0.7);
-      animation: bounce 2s ease-in-out infinite;
-    }
-
-    @keyframes bounce {
-      0%,100% { transform: translateY(0px); }
-      50%     { transform: translateY(10px); }
-    }
-
-    /* Control panel */
-    #controls {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: rgba(0,0,0,0.6);
-      padding: 10px;
-      border-radius: 8px;
-    }
-    #controls input {
-      margin: 5px 0;
-      color: white;
+    body { margin: 0; overflow: hidden; background: black; }
+    #controlsPanel {
+      position: absolute; top: 10px; left: 10px; z-index: 10;
+      background: rgba(0,0,0,0.6); padding: 10px; border-radius: 8px; color: white;
     }
   </style>
 </head>
 <body>
-  <div id="controls">
-    <label style="color:white">Chọn nhạc (MP3/MP4):</label>
-    <input type="file" id="musicInput" accept="audio/*,video/*">
+  <div id="controlsPanel">
+    <label>Chọn nhạc: </label>
+    <input type="file" id="musicInput" accept="audio/*">
   </div>
-
-  <div id="scene">
-    <div id="planet"></div>
-    <div class="orbit" id="orbit1"></div>
-    <div class="orbit" id="orbit2"></div>
-    <div class="orbit" id="orbit3"></div>
-  </div>
-
   <audio id="audioPlayer" autoplay loop></audio>
-
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.0/examples/js/controls/OrbitControls.js"></script>
   <script>
-    // Danh sách ảnh vệ tinh (m có thể thêm rất nhiều link ở đây)
-    const satelliteImages = [
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color("black");
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 5000);
+    camera.position.set(0, 200, 800);
+
+    const renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+    // Ánh sáng
+    const light = new THREE.PointLight(0xffffff, 2, 2000);
+    light.position.set(500, 500, 500);
+    scene.add(light);
+
+    // Hành tinh chính
+    const planetGeometry = new THREE.SphereGeometry(100, 64, 64);
+    const planetMaterial = new THREE.MeshPhongMaterial({
+      map: new THREE.TextureLoader().load("https://upload.wikimedia.org/wikipedia/commons/9/97/The_Earth_seen_from_Apollo_17.jpg")
+    });
+    const planet = new THREE.Mesh(planetGeometry, planetMaterial);
+    scene.add(planet);
+
+    // Tạo nhiều "hành tinh nhỏ" quay quanh
+    const satellites = [];
+    const textureLoader = new THREE.TextureLoader();
+    const imageUrls = [
       "https://picsum.photos/200?random=1",
       "https://picsum.photos/200?random=2",
-      "https://picsum.photos/200?random=3",
-      "https://picsum.photos/200?random=4",
-      "https://picsum.photos/200?random=5",
-      "https://picsum.photos/200?random=6",
-      "https://picsum.photos/200?random=7",
-      "https://picsum.photos/200?random=8",
-      "https://picsum.photos/200?random=9",
-      "https://picsum.photos/200?random=10"
+      "https://picsum.photos/200?random=3"
     ];
 
-    function createOrbit(containerId, radius, count) {
-      const orbit = document.getElementById(containerId);
-      for (let i = 0; i < count; i++) {
-        const angle = (i / count) * 360;
-        const img = document.createElement("img");
-        img.src = satelliteImages[i % satelliteImages.length];
-        img.style.transform = `rotateY(${angle}deg) translateZ(${radius}px)`;
-        orbit.appendChild(img);
-      }
+    for (let i = 0; i < 50; i++) {
+      const geo = new THREE.SphereGeometry(20, 32, 32);
+      const mat = new THREE.MeshPhongMaterial({
+        map: textureLoader.load(imageUrls[i % imageUrls.length])
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      const radius = 200 + Math.random() * 400;
+      const angle = Math.random() * Math.PI * 2;
+      mesh.userData = {radius, angle, speed: 0.001 + Math.random()*0.002};
+      scene.add(mesh);
+      satellites.push(mesh);
     }
 
-    createOrbit("orbit1", 300, 12);
-    createOrbit("orbit2", 450, 16);
-    createOrbit("orbit3", 600, 20);
+    function animate() {
+      requestAnimationFrame(animate);
+      planet.rotation.y += 0.002;
+      satellites.forEach(s => {
+        s.userData.angle += s.userData.speed;
+        s.position.set(
+          Math.cos(s.userData.angle) * s.userData.radius,
+          (Math.sin(s.userData.angle*2)) * 50,
+          Math.sin(s.userData.angle) * s.userData.radius
+        );
+      });
+      renderer.render(scene, camera);
+    }
+    animate();
 
-    // Chèn file nhạc
+    // Chèn nhạc
     const musicInput = document.getElementById("musicInput");
     const audioPlayer = document.getElementById("audioPlayer");
-
-    musicInput.addEventListener("change", (event) => {
-      const file = event.target.files[0];
+    musicInput.addEventListener("change", e => {
+      const file = e.target.files[0];
       if (file) {
-        const url = URL.createObjectURL(file);
-        audioPlayer.src = url;
+        audioPlayer.src = URL.createObjectURL(file);
         audioPlayer.play();
       }
+    });
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
     });
   </script>
 </body>
