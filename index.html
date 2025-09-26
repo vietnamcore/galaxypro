@@ -7,7 +7,7 @@
     body { margin:0; overflow:hidden; background:black; color:white; font-family:sans-serif; }
     #menu {
       position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
-      background:rgba(0,0,0,0.8); padding:20px; border:1px solid white;
+      background:rgba(0,0,0,0.85); padding:20px; border:1px solid white;
       text-align:center; z-index:10;
     }
     input { margin:10px 0; }
@@ -25,8 +25,8 @@
   </div>
 
   <canvas id="c"></canvas>
+  <audio id="bgm" controls style="display:none"></audio>
 
-  <!-- Thư viện Three.js -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
 
@@ -34,6 +34,7 @@
     const menu = document.getElementById("menu");
     const canvas = document.getElementById("c");
     const btn = document.getElementById("startBtn");
+    const bgm = document.getElementById("bgm");
 
     btn.onclick = () => {
       const file = document.getElementById("audioInput").files[0];
@@ -41,16 +42,15 @@
 
       if (!file || imgs.length === 0) { alert("⚠️ Chọn nhạc + ảnh trước!"); return; }
 
-      // phát nhạc
-      const audioURL = URL.createObjectURL(file);
-      const audio = new Audio(audioURL);
-      audio.loop = true;
-      audio.play();
+      // gán nhạc vào audio tag
+      bgm.src = URL.createObjectURL(file);
+      bgm.loop = true;
+      bgm.play().catch(err => console.log("Audio blocked:", err));
 
       // ẩn menu
       menu.style.display = "none";
 
-      // khởi chạy 3D
+      // chạy 3D
       start3D(imgs);
     };
 
@@ -63,88 +63,63 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
 
-      // controls xoay + zoom
       const controls = new THREE.OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
 
-      // ánh sáng
       scene.add(new THREE.AmbientLight(0x404040, 2));
       const point = new THREE.PointLight(0xffffff, 2);
       point.position.set(200,200,200);
       scene.add(point);
 
-      // nền sao lung linh
+      // nền sao
       const starsGeo = new THREE.BufferGeometry();
-      const starCount = 2000;
       const starPos = [];
-      for (let i=0; i<starCount; i++){
+      for (let i=0; i<2000; i++){
         starPos.push((Math.random()-0.5)*2000);
         starPos.push((Math.random()-0.5)*2000);
         starPos.push((Math.random()-0.5)*2000);
       }
       starsGeo.setAttribute("position", new THREE.Float32BufferAttribute(starPos, 3));
       const starsMat = new THREE.PointsMaterial({color:0xffffff});
-      const starField = new THREE.Points(starsGeo, starsMat);
-      scene.add(starField);
+      scene.add(new THREE.Points(starsGeo, starsMat));
 
       // hành tinh trung tâm
       const centerGeo = new THREE.SphereGeometry(40, 64, 64);
-      const centerMat = new THREE.MeshStandardMaterial({ color:0x3399ff, metalness:0.4, roughness:0.7 });
+      const centerMat = new THREE.MeshStandardMaterial({ color:0x3399ff });
       const centerPlanet = new THREE.Mesh(centerGeo, centerMat);
       scene.add(centerPlanet);
 
-      // các hành tinh xung quanh (ảnh người dùng)
-      const textureLoader = new THREE.TextureLoader();
+      // load ảnh hành tinh
       const planets = [];
       [...imgs].forEach((img, i) => {
-        const url = URL.createObjectURL(img);
-        const tex = textureLoader.load(url);
-        const geo = new THREE.SphereGeometry(15, 32, 32);
-        const mat = new THREE.MeshStandardMaterial({ map: tex });
-        const mesh = new THREE.Mesh(geo, mat);
-        const group = new THREE.Group();
-        group.add(mesh);
-        mesh.position.x = 100 + i*30; // bán kính quỹ đạo khác nhau
-        scene.add(group);
-        planets.push({ group, mesh, speed:0.01 + i*0.002 });
+        const reader = new FileReader();
+        reader.onload = e => {
+          const tex = new THREE.TextureLoader().load(e.target.result);
+          const geo = new THREE.SphereGeometry(15, 32, 32);
+          const mat = new THREE.MeshStandardMaterial({ map: tex });
+          const mesh = new THREE.Mesh(geo, mat);
+          const group = new THREE.Group();
+          group.add(mesh);
+          mesh.position.x = 100 + i*40;
+          scene.add(group);
+          planets.push({ group, mesh, speed:0.01 + i*0.002 });
+        };
+        reader.readAsDataURL(img);
       });
 
       // animation
       function animate() {
         requestAnimationFrame(animate);
-
-        // xoay trung tâm
         centerPlanet.rotation.y += 0.003;
-
-        // hành tinh quay quanh
-        planets.forEach((p, idx) => {
+        planets.forEach(p => {
           p.group.rotation.y += p.speed;
           p.mesh.rotation.y += 0.01;
         });
-
         controls.update();
         renderer.render(scene, camera);
       }
       animate();
-
-      // hiệu ứng zoom khi load
-      camera.position.z = 1000;
-      let t=0;
-      function zoomIn(){
-        if (t<1){
-          t += 0.01;
-          camera.position.z = 1000 - 700*t;
-          requestAnimationFrame(zoomIn);
-        }
-      }
-      zoomIn();
-
-      window.addEventListener("resize", ()=>{
-        camera.aspect = window.innerWidth/window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      });
     }
   </script>
 </body>
