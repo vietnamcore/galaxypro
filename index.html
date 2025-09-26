@@ -2,135 +2,149 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <title>Galaxy 3D</title>
+  <title>3D Universe</title>
   <style>
-    body { margin: 0; background: black; color: white; font-family: sans-serif; }
+    body { margin:0; overflow:hidden; background:black; color:white; font-family:sans-serif; }
     #menu {
-      position: fixed;
-      top: 20%; left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.8);
-      padding: 20px;
-      border: 1px solid white;
-      z-index: 10;
-      text-align: center;
+      position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+      background:rgba(0,0,0,0.8); padding:20px; border:1px solid white;
+      text-align:center; z-index:10;
     }
-    #menu input { margin: 10px; }
-    #startBtn { padding: 8px 20px; cursor: pointer; }
-    canvas { display: block; }
+    input { margin:10px 0; }
+    #startBtn { padding:8px 20px; cursor:pointer; }
+    canvas { display:block; }
   </style>
 </head>
 <body>
+  <!-- Menu chọn file -->
   <div id="menu">
-    <h2>🚀 Chọn file để bắt đầu</h2>
-    <p><b>Ảnh hành tinh:</b><br><input type="file" id="planetInput" accept="image/*"></p>
-    <p><b>Ảnh xung quanh:</b><br><input type="file" id="imagesInput" accept="image/*" multiple></p>
-    <p><b>Nhạc nền:</b><br><input type="file" id="audioInput" accept="audio/*,video/*"></p>
-    <button id="startBtn">Start</button>
+    <h2>🌌 Chọn nhạc & ảnh hành tinh</h2>
+    <input type="file" id="audioInput" accept="audio/*,video/*"><br>
+    <input type="file" id="imageInput" accept="image/*" multiple><br>
+    <button id="startBtn">Bắt đầu</button>
   </div>
 
-  <canvas id="threeCanvas"></canvas>
+  <canvas id="c"></canvas>
 
+  <!-- Thư viện Three.js -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
 
   <script>
     const menu = document.getElementById("menu");
-    const canvas = document.getElementById("threeCanvas");
-    const startBtn = document.getElementById("startBtn");
+    const canvas = document.getElementById("c");
+    const btn = document.getElementById("startBtn");
 
-    startBtn.onclick = () => {
-      const planetFile = document.getElementById("planetInput").files[0];
-      const imagesInput = document.getElementById("imagesInput").files;
-      const audioFile = document.getElementById("audioInput").files[0];
+    btn.onclick = () => {
+      const file = document.getElementById("audioInput").files[0];
+      const imgs = document.getElementById("imageInput").files;
 
-      if (!planetFile || !audioFile) {
-        alert("⚠️ Hãy chọn ít nhất 1 ảnh hành tinh và 1 file nhạc!");
-        return;
-      }
+      if (!file || imgs.length === 0) { alert("⚠️ Chọn nhạc + ảnh trước!"); return; }
 
-      const planetURL = URL.createObjectURL(planetFile);
-      const imageURLs = [];
-      for (let i=0; i<imagesInput.length; i++) {
-        imageURLs.push(URL.createObjectURL(imagesInput[i]));
-      }
-      const audioURL = URL.createObjectURL(audioFile);
-
-      // Ẩn menu
-      menu.style.display = "none";
-
-      // Phát nhạc
+      // phát nhạc
+      const audioURL = URL.createObjectURL(file);
       const audio = new Audio(audioURL);
       audio.loop = true;
       audio.play();
 
-      // Khởi tạo 3D
-      init3D(planetURL, imageURLs);
+      // ẩn menu
+      menu.style.display = "none";
+
+      // khởi chạy 3D
+      start3D(imgs);
     };
 
-    function init3D(planetURL, imageURLs) {
+    function start3D(imgs) {
       const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
-      camera.position.set(0, 40, 150);
+      const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
+      camera.position.set(0, 100, 300);
 
-      const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+      const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
       renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
 
+      // controls xoay + zoom
       const controls = new THREE.OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
 
-      // Planet
-      const tex = new THREE.TextureLoader().load(planetURL);
-      const planet = new THREE.Mesh(
-        new THREE.SphereGeometry(20, 64, 64),
-        new THREE.MeshStandardMaterial({ map: tex })
-      );
-      scene.add(planet);
-
-      // Light
-      scene.add(new THREE.PointLight(0xffffff, 2, 1000).position.set(100,200,300));
+      // ánh sáng
       scene.add(new THREE.AmbientLight(0x404040, 2));
+      const point = new THREE.PointLight(0xffffff, 2);
+      point.position.set(200,200,200);
+      scene.add(point);
 
-      // Stars
-      const starGeo = new THREE.BufferGeometry();
+      // nền sao lung linh
+      const starsGeo = new THREE.BufferGeometry();
+      const starCount = 2000;
       const starPos = [];
-      for (let i=0; i<2000; i++) {
+      for (let i=0; i<starCount; i++){
         starPos.push((Math.random()-0.5)*2000);
         starPos.push((Math.random()-0.5)*2000);
         starPos.push((Math.random()-0.5)*2000);
       }
-      starGeo.setAttribute("position", new THREE.Float32BufferAttribute(starPos, 3));
-      const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 2 });
-      scene.add(new THREE.Points(starGeo, starMat));
+      starsGeo.setAttribute("position", new THREE.Float32BufferAttribute(starPos, 3));
+      const starsMat = new THREE.PointsMaterial({color:0xffffff});
+      const starField = new THREE.Points(starsGeo, starsMat);
+      scene.add(starField);
 
-      // Orbit images
-      const loader = new THREE.TextureLoader();
-      const sprites = [];
-      imageURLs.forEach(url => {
-        const tex = loader.load(url);
-        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex }));
-        sprite.scale.set(15,15,1);
-        const radius = 80 + Math.random()*50;
-        const angle = Math.random()*Math.PI*2;
-        sprite.userData = { radius, angle, speed: 0.002 + Math.random()*0.002 };
-        sprite.position.set(Math.cos(angle)*radius, (Math.random()-0.5)*50, Math.sin(angle)*radius);
-        scene.add(sprite);
-        sprites.push(sprite);
+      // hành tinh trung tâm
+      const centerGeo = new THREE.SphereGeometry(40, 64, 64);
+      const centerMat = new THREE.MeshStandardMaterial({ color:0x3399ff, metalness:0.4, roughness:0.7 });
+      const centerPlanet = new THREE.Mesh(centerGeo, centerMat);
+      scene.add(centerPlanet);
+
+      // các hành tinh xung quanh (ảnh người dùng)
+      const textureLoader = new THREE.TextureLoader();
+      const planets = [];
+      [...imgs].forEach((img, i) => {
+        const url = URL.createObjectURL(img);
+        const tex = textureLoader.load(url);
+        const geo = new THREE.SphereGeometry(15, 32, 32);
+        const mat = new THREE.MeshStandardMaterial({ map: tex });
+        const mesh = new THREE.Mesh(geo, mat);
+        const group = new THREE.Group();
+        group.add(mesh);
+        mesh.position.x = 100 + i*30; // bán kính quỹ đạo khác nhau
+        scene.add(group);
+        planets.push({ group, mesh, speed:0.01 + i*0.002 });
       });
 
-      // Render loop
+      // animation
       function animate() {
         requestAnimationFrame(animate);
-        planet.rotation.y += 0.002;
-        sprites.forEach(s => {
-          s.userData.angle += s.userData.speed;
-          s.position.x = Math.cos(s.userData.angle)*s.userData.radius;
-          s.position.z = Math.sin(s.userData.angle)*s.userData.radius;
+
+        // xoay trung tâm
+        centerPlanet.rotation.y += 0.003;
+
+        // hành tinh quay quanh
+        planets.forEach((p, idx) => {
+          p.group.rotation.y += p.speed;
+          p.mesh.rotation.y += 0.01;
         });
+
         controls.update();
         renderer.render(scene, camera);
       }
       animate();
+
+      // hiệu ứng zoom khi load
+      camera.position.z = 1000;
+      let t=0;
+      function zoomIn(){
+        if (t<1){
+          t += 0.01;
+          camera.position.z = 1000 - 700*t;
+          requestAnimationFrame(zoomIn);
+        }
+      }
+      zoomIn();
+
+      window.addEventListener("resize", ()=>{
+        camera.aspect = window.innerWidth/window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
     }
   </script>
 </body>
