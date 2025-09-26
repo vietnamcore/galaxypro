@@ -4,163 +4,139 @@
 <meta charset="UTF-8">
 <title>Hệ Mặt Trời 3D - Intro Thiên Hà</title>
 <style>
-    html, body {
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-        background: black;
-        font-family: Arial, sans-serif;
-    }
-    #musicControl {
-        position: absolute;
-        top: 20px;
-        left: 20px;
-        z-index: 10;
-        background: rgba(0,0,0,0.5);
-        padding: 10px;
-        border-radius: 8px;
-        color: white;
-    }
-    #musicControl input[type="file"] {
-        display: block;
-        margin-top: 5px;
-    }
+html, body { margin:0; padding:0; overflow:hidden; background:black; font-family:Arial;}
+#musicControl{
+    position:absolute; top:20px; left:20px; z-index:10;
+    background: rgba(0,0,0,0.5); padding:10px; border-radius:8px; color:white;
+}
+#musicControl input[type=file]{ display:block; margin-top:5px;}
 </style>
 </head>
 <body>
+
 <div id="musicControl">
-    <div>Chọn file nhạc (MP3 hoặc M4A):</div>
-    <input type="file" id="audioInput" accept=".mp3,.m4a"/>
-    <audio id="audioPlayer" controls></audio>
+  <div>Chọn file nhạc (MP3 hoặc M4A):</div>
+  <input type="file" id="audioInput" accept=".mp3,.m4a"/>
+  <audio id="audioPlayer" controls></audio>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/controls/OrbitControls.js"></script>
 <script>
+// Scene, Camera, Renderer
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
 const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
+// OrbitControls
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.enablePan = false;
-controls.enableZoom = true;
+controls.enablePan=false;
+controls.enableZoom=true;
 
-// Starfield
-const starsGeometry = new THREE.BufferGeometry();
-const starCount = 5000;
-const starPositions = [];
+// Starfield (nhẹ để mở được)
+const starGeo = new THREE.BufferGeometry();
+const starCount=1000;
+const positions=[];
 for(let i=0;i<starCount;i++){
-    starPositions.push((Math.random()-0.5)*2000);
-    starPositions.push((Math.random()-0.5)*2000);
-    starPositions.push((Math.random()-0.5)*2000);
+  positions.push((Math.random()-0.5)*2000);
+  positions.push((Math.random()-0.5)*2000);
+  positions.push((Math.random()-0.5)*2000);
 }
-starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions,3));
-const starsMaterial = new THREE.PointsMaterial({color:0xffffff,size:0.5});
-scene.add(new THREE.Points(starsGeometry,starsMaterial));
+starGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions,3));
+const starMat = new THREE.PointsMaterial({color:0xffffff,size:0.5});
+scene.add(new THREE.Points(starGeo,starMat));
 
 // Lights
-const ambientLight = new THREE.AmbientLight(0x888888);
-scene.add(ambientLight);
-const sunLight = new THREE.PointLight(0xffffff,2,0);
-sunLight.position.set(0,0,0);
-scene.add(sunLight);
+const ambient = new THREE.AmbientLight(0x888888); scene.add(ambient);
+const sunLight = new THREE.PointLight(0xffffff,2,0); sunLight.position.set(0,0,0); scene.add(sunLight);
 
 // Sun rainbow
-const rainbowColors = [0xff0000,0xff7f00,0xffff00,0x00ff00,0x0000ff,0x4b0082,0x9400d3];
-const sunGeometry = new THREE.SphereGeometry(3,64,64);
-const sunMaterial = new THREE.MeshBasicMaterial({color:0xffff00, emissive:0xffff00});
-const sun = new THREE.Mesh(sunGeometry,sunMaterial);
+const rainbowColors=[0xff0000,0xff7f00,0xffff00,0x00ff00,0x0000ff,0x4b0082,0x9400d3];
+const sunGeo = new THREE.SphereGeometry(3,64,64);
+const sunMat = new THREE.MeshBasicMaterial({color:0xffff00,emissive:0xffff00});
+const sun = new THREE.Mesh(sunGeo,sunMat);
 scene.add(sun);
 
 // Planets
-const planets = [];
-const planetData = [
-    {name:'Mercury', size:0.5, distance:5, color:0xaaaaaa, speed:0.04},
-    {name:'Venus', size:0.7, distance:7, color:0xffcc66, speed:0.015},
-    {name:'Earth', size:0.8, distance:10, color:0x2266ff, speed:0.01, texture:'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg'},
-    {name:'Mars', size:0.6, distance:13, color:0xff3300, speed:0.008},
-    {name:'Jupiter', size:2, distance:18, color:0xffaa33, speed:0.004},
-    {name:'Saturn', size:1.7, distance:23, color:0xffdd99, speed:0.003, ring:true},
-    {name:'Uranus', size:1.3, distance:28, color:0x66ccff, speed:0.002},
-    {name:'Neptune', size:1.2, distance:32, color:0x3366ff, speed:0.0015},
+const planets=[];
+const planetData=[
+  {name:'Mercury',size:0.5,distance:5,color:0xaaaaaa,speed:0.04},
+  {name:'Venus',size:0.7,distance:7,color:0xffcc66,speed:0.015},
+  {name:'Earth',size:0.8,distance:10,color:0x2266ff,speed:0.01},
+  {name:'Mars',size:0.6,distance:13,color:0xff3300,speed:0.008},
+  {name:'Jupiter',size:2,distance:18,color:0xffaa33,speed:0.004},
+  {name:'Saturn',size:1.7,distance:23,color:0xffdd99,speed:0.003,ring:true},
+  {name:'Uranus',size:1.3,distance:28,color:0x66ccff,speed:0.002},
+  {name:'Neptune',size:1.2,distance:32,color:0x3366ff,speed:0.0015},
 ];
 
-const textureLoader = new THREE.TextureLoader();
-
 planetData.forEach(p=>{
-    const geom = new THREE.SphereGeometry(p.size,32,32);
-    let mat;
-    if(p.texture){
-        const texture = textureLoader.load(p.texture);
-        mat = new THREE.MeshStandardMaterial({map:texture});
-    }else{
-        mat = new THREE.MeshStandardMaterial({color:p.color});
-    }
-    const mesh = new THREE.Mesh(geom,mat);
-    mesh.position.x = p.distance;
-    scene.add(mesh);
+  const geom = new THREE.SphereGeometry(p.size,32,32);
+  const mat = new THREE.MeshStandardMaterial({color:p.color});
+  const mesh = new THREE.Mesh(geom,mat);
+  mesh.position.x=p.distance;
+  scene.add(mesh);
 
-    if(p.ring){
-        const ringGeom = new THREE.RingGeometry(p.size+0.3,p.size+0.6,64);
-        const ringMat = new THREE.MeshBasicMaterial({color:0xffffaa, side:THREE.DoubleSide});
-        const ring = new THREE.Mesh(ringGeom,ringMat);
-        ring.rotation.x = Math.PI/2;
-        mesh.add(ring);
-    }
+  if(p.ring){
+    const ringGeom = new THREE.RingGeometry(p.size+0.3,p.size+0.6,64);
+    const ringMat = new THREE.MeshBasicMaterial({color:0xffffaa,side:THREE.DoubleSide});
+    const ring = new THREE.Mesh(ringGeom,ringMat);
+    ring.rotation.x=Math.PI/2;
+    mesh.add(ring);
+  }
 
-    planets.push({mesh:mesh,distance:p.distance,speed:p.speed,angle:Math.random()*Math.PI*2});
+  planets.push({mesh:mesh,distance:p.distance,speed:p.speed,angle:Math.random()*Math.PI*2});
 });
 
-// Intro zoom
+// Camera intro
 camera.position.set(0,50,100);
-let introProgress = 0;
+let introProgress=0;
 
-// Animate
+// Animation
 function animate(){
-    requestAnimationFrame(animate);
+  requestAnimationFrame(animate);
 
-    // Zoom intro
-    if(introProgress<1){
-        camera.position.lerp(new THREE.Vector3(0,10,40),0.01);
-        introProgress += 0.005;
-    }
+  // Zoom intro smooth
+  if(introProgress<1){
+    camera.position.lerp(new THREE.Vector3(0,10,40),0.01);
+    introProgress+=0.005;
+  }
 
-    // Planets rotation
-    planets.forEach(p=>{
-        p.angle += p.speed;
-        p.mesh.position.x = Math.cos(p.angle)*p.distance;
-        p.mesh.position.z = Math.sin(p.angle)*p.distance;
-    });
+  // Planets orbit
+  planets.forEach(p=>{
+    p.angle+=p.speed;
+    p.mesh.position.x=Math.cos(p.angle)*p.distance;
+    p.mesh.position.z=Math.sin(p.angle)*p.distance;
+  });
 
-    // Rainbow sun
-    const time = Date.now()*0.001;
-    const colorIndex = Math.floor(time)%rainbowColors.length;
-    sun.material.color.setHex(rainbowColors[colorIndex]);
+  // Rainbow sun
+  const t=Date.now()*0.001;
+  const idx=Math.floor(t)%rainbowColors.length;
+  sun.material.color.setHex(rainbowColors[idx]);
 
-    renderer.render(scene,camera);
+  renderer.render(scene,camera);
 }
 animate();
 
 // Resize
-window.addEventListener('resize', ()=>{
-    camera.aspect = window.innerWidth/window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+window.addEventListener('resize',()=>{
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
 });
 
-// Audio input
-const audioInput = document.getElementById('audioInput');
-const audioPlayer = document.getElementById('audioPlayer');
-
+// Audio M4A + MP3
+const audioInput=document.getElementById('audioInput');
+const audioPlayer=document.getElementById('audioPlayer');
 audioInput.addEventListener('change', function(e){
-    const file = e.target.files[0];
-    if(file){
-        const url = URL.createObjectURL(file);
-        audioPlayer.src = url;
-        audioPlayer.play().catch(()=>{});
-    }
+  const file=e.target.files[0];
+  if(file){
+    const url=URL.createObjectURL(file);
+    audioPlayer.src=url;
+    audioPlayer.play().catch(()=>{});
+  }
 });
 </script>
 </body>
