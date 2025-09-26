@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Galaxy 3D</title>
+  <style>
+    body { margin: 0; background: black; color: white; font-family: sans-serif; }
+    #menu {
+      position: fixed;
+      top: 20%; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.8);
+      padding: 20px;
+      border: 1px solid white;
+      z-index: 10;
+      text-align: center;
+    }
+    #menu input { margin: 10px; }
+    #startBtn { padding: 8px 20px; cursor: pointer; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <div id="menu">
+    <h2>🚀 Chọn file để bắt đầu</h2>
+    <p><b>Ảnh hành tinh:</b><br><input type="file" id="planetInput" accept="image/*"></p>
+    <p><b>Ảnh xung quanh:</b><br><input type="file" id="imagesInput" accept="image/*" multiple></p>
+    <p><b>Nhạc nền:</b><br><input type="file" id="audioInput" accept="audio/*,video/*"></p>
+    <button id="startBtn">Start</button>
+  </div>
+
+  <canvas id="threeCanvas"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
+
+  <script>
+    const menu = document.getElementById("menu");
+    const canvas = document.getElementById("threeCanvas");
+    const startBtn = document.getElementById("startBtn");
+
+    startBtn.onclick = () => {
+      const planetFile = document.getElementById("planetInput").files[0];
+      const imagesInput = document.getElementById("imagesInput").files;
+      const audioFile = document.getElementById("audioInput").files[0];
+
+      if (!planetFile || !audioFile) {
+        alert("⚠️ Hãy chọn ít nhất 1 ảnh hành tinh và 1 file nhạc!");
+        return;
+      }
+
+      const planetURL = URL.createObjectURL(planetFile);
+      const imageURLs = [];
+      for (let i=0; i<imagesInput.length; i++) {
+        imageURLs.push(URL.createObjectURL(imagesInput[i]));
+      }
+      const audioURL = URL.createObjectURL(audioFile);
+
+      // Ẩn menu
+      menu.style.display = "none";
+
+      // Phát nhạc
+      const audio = new Audio(audioURL);
+      audio.loop = true;
+      audio.play();
+
+      // Khởi tạo 3D
+      init3D(planetURL, imageURLs);
+    };
+
+    function init3D(planetURL, imageURLs) {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
+      camera.position.set(0, 40, 150);
+
+      const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+
+      // Planet
+      const tex = new THREE.TextureLoader().load(planetURL);
+      const planet = new THREE.Mesh(
+        new THREE.SphereGeometry(20, 64, 64),
+        new THREE.MeshStandardMaterial({ map: tex })
+      );
+      scene.add(planet);
+
+      // Light
+      scene.add(new THREE.PointLight(0xffffff, 2, 1000).position.set(100,200,300));
+      scene.add(new THREE.AmbientLight(0x404040, 2));
+
+      // Stars
+      const starGeo = new THREE.BufferGeometry();
+      const starPos = [];
+      for (let i=0; i<2000; i++) {
+        starPos.push((Math.random()-0.5)*2000);
+        starPos.push((Math.random()-0.5)*2000);
+        starPos.push((Math.random()-0.5)*2000);
+      }
+      starGeo.setAttribute("position", new THREE.Float32BufferAttribute(starPos, 3));
+      const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 2 });
+      scene.add(new THREE.Points(starGeo, starMat));
+
+      // Orbit images
+      const loader = new THREE.TextureLoader();
+      const sprites = [];
+      imageURLs.forEach(url => {
+        const tex = loader.load(url);
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex }));
+        sprite.scale.set(15,15,1);
+        const radius = 80 + Math.random()*50;
+        const angle = Math.random()*Math.PI*2;
+        sprite.userData = { radius, angle, speed: 0.002 + Math.random()*0.002 };
+        sprite.position.set(Math.cos(angle)*radius, (Math.random()-0.5)*50, Math.sin(angle)*radius);
+        scene.add(sprite);
+        sprites.push(sprite);
+      });
+
+      // Render loop
+      function animate() {
+        requestAnimationFrame(animate);
+        planet.rotation.y += 0.002;
+        sprites.forEach(s => {
+          s.userData.angle += s.userData.speed;
+          s.position.x = Math.cos(s.userData.angle)*s.userData.radius;
+          s.position.z = Math.sin(s.userData.angle)*s.userData.radius;
+        });
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+  </script>
+</body>
+</html>
