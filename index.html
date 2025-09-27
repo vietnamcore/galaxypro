@@ -2,14 +2,19 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<title>Hệ Mặt Trời 3D - Intro Thiên Hà</title>
+<title>Hệ Mặt Trời 3D Pastel + Vệ Tinh</title>
 <style>
 html, body { margin:0; padding:0; overflow:hidden; background:black; font-family:Arial;}
 #musicControl{
     position:absolute; top:20px; left:20px; z-index:10;
-    background: rgba(0,0,0,0.5); padding:10px; border-radius:8px; color:white;
+    background: rgba(0,0,0,0.5); padding:10px; border-radius:8px;color:white;
 }
 #musicControl input[type=file]{ display:block; margin-top:5px;}
+#textureControl{
+    position:absolute; top:150px; left:20px; z-index:10;
+    background: rgba(0,0,0,0.5); padding:10px; border-radius:8px;color:white;
+}
+#textureControl input[type=file]{ display:block; margin-top:5px;}
 </style>
 </head>
 <body>
@@ -20,9 +25,15 @@ html, body { margin:0; padding:0; overflow:hidden; background:black; font-family
   <audio id="audioPlayer" controls></audio>
 </div>
 
+<div id="textureControl">
+  <div>Chọn texture cho Trái Đất (tuỳ chọn):</div>
+  <input type="file" id="textureEarth" accept="image/*"/>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/controls/OrbitControls.js"></script>
 <script>
+
 // Scene, Camera, Renderer
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
@@ -30,12 +41,12 @@ const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// OrbitControls
+// Controls
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enablePan=false;
 controls.enableZoom=true;
 
-// Starfield (nhẹ để mở được)
+// Starfield nhẹ
 const starGeo = new THREE.BufferGeometry();
 const starCount=1000;
 const positions=[];
@@ -49,56 +60,70 @@ const starMat = new THREE.PointsMaterial({color:0xffffff,size:0.5});
 scene.add(new THREE.Points(starGeo,starMat));
 
 // Lights
-const ambient = new THREE.AmbientLight(0x888888); scene.add(ambient);
+scene.add(new THREE.AmbientLight(0x888888));
 const sunLight = new THREE.PointLight(0xffffff,2,0); sunLight.position.set(0,0,0); scene.add(sunLight);
 
-// Sun rainbow
-const rainbowColors=[0xff0000,0xff7f00,0xffff00,0x00ff00,0x0000ff,0x4b0082,0x9400d3];
+// Rainbow Sun
+const rainbowColors=[0xffadad,0xffd6a5,0xfdffb6,0xcaffbf,0x9bf6ff,0xa0c4ff,0xbdb2ff];
 const sunGeo = new THREE.SphereGeometry(3,64,64);
-const sunMat = new THREE.MeshBasicMaterial({color:0xffff00,emissive:0xffff00});
+const sunMat = new THREE.MeshBasicMaterial({color:0xfff1a4,emissive:0xffffaa});
 const sun = new THREE.Mesh(sunGeo,sunMat);
 scene.add(sun);
 
-// Planets
+// Planets pastel + optional texture + halo sprites
 const planets=[];
 const planetData=[
-  {name:'Mercury',size:0.5,distance:5,color:0xaaaaaa,speed:0.04},
-  {name:'Venus',size:0.7,distance:7,color:0xffcc66,speed:0.015},
-  {name:'Earth',size:0.8,distance:10,color:0x2266ff,speed:0.01},
-  {name:'Mars',size:0.6,distance:13,color:0xff3300,speed:0.008},
-  {name:'Jupiter',size:2,distance:18,color:0xffaa33,speed:0.004},
-  {name:'Saturn',size:1.7,distance:23,color:0xffdd99,speed:0.003,ring:true},
-  {name:'Uranus',size:1.3,distance:28,color:0x66ccff,speed:0.002},
-  {name:'Neptune',size:1.2,distance:32,color:0x3366ff,speed:0.0015},
+  {name:'Mercury',size:0.5,distance:5,color:0xcfcfcf,satelliteCount:5},
+  {name:'Venus',size:0.7,distance:7,color:0xffe0ac,satelliteCount:6},
+  {name:'Earth',size:0.8,distance:10,color:0xa4d4ff,satelliteCount:8,textureInput:'textureEarth'},
+  {name:'Mars',size:0.6,distance:13,color:0xffa3a3,satelliteCount:4},
+  {name:'Jupiter',size:2,distance:18,color:0xffd1a4,satelliteCount:12},
+  {name:'Saturn',size:1.7,distance:23,color:0xe0c4ff,satelliteCount:10},
+  {name:'Uranus',size:1.3,distance:28,color:0xa0f0ff,satelliteCount:8},
+  {name:'Neptune',size:1.2,distance:32,color:0x8080ff,satelliteCount:6},
 ];
 
-planetData.forEach(p=>{
-  const geom = new THREE.SphereGeometry(p.size,32,32);
-  const mat = new THREE.MeshStandardMaterial({color:p.color});
-  const mesh = new THREE.Mesh(geom,mat);
-  mesh.position.x=p.distance;
-  scene.add(mesh);
+const textureLoader = new THREE.TextureLoader();
 
-  if(p.ring){
-    const ringGeom = new THREE.RingGeometry(p.size+0.3,p.size+0.6,64);
-    const ringMat = new THREE.MeshBasicMaterial({color:0xffffaa,side:THREE.DoubleSide});
-    const ring = new THREE.Mesh(ringGeom,ringMat);
-    ring.rotation.x=Math.PI/2;
-    mesh.add(ring);
+planetData.forEach(p=>{
+  let mat;
+  if(p.textureInput){
+    mat = new THREE.MeshStandardMaterial({color:p.color}); // fallback pastel
+    // sẽ load texture từ input
+  }else{
+    mat = new THREE.MeshStandardMaterial({color:p.color});
   }
 
-  planets.push({mesh:mesh,distance:p.distance,speed:p.speed,angle:Math.random()*Math.PI*2});
+  const geom = new THREE.SphereGeometry(p.size,32,32);
+  const mesh = new THREE.Mesh(geom,mat);
+  mesh.position.x = p.distance;
+  scene.add(mesh);
+
+  // Halo/satellite sprites
+  const satellites=[];
+  for(let i=0;i<p.satelliteCount;i++){
+    const sGeom = new THREE.SphereGeometry(p.size*0.1,8,8);
+    const sMat = new THREE.MeshBasicMaterial({color:0x88ffff});
+    const sat = new THREE.Mesh(sGeom,sMat);
+    const angle = Math.random()*Math.PI*2;
+    const radius = p.size + 0.5 + Math.random()*1;
+    sat.userData = {angle:angle, radius:radius, speed:0.01+Math.random()*0.02};
+    satellites.push(sat);
+    mesh.add(sat);
+  }
+
+  planets.push({mesh:mesh, satellites:satellites, angle:Math.random()*Math.PI*2, distance:p.distance, speed:0.01+Math.random()*0.01, textureInput:p.textureInput});
 });
 
 // Camera intro
 camera.position.set(0,50,100);
 let introProgress=0;
 
-// Animation
+// Animate
 function animate(){
   requestAnimationFrame(animate);
 
-  // Zoom intro smooth
+  // Zoom intro
   if(introProgress<1){
     camera.position.lerp(new THREE.Vector3(0,10,40),0.01);
     introProgress+=0.005;
@@ -106,14 +131,21 @@ function animate(){
 
   // Planets orbit
   planets.forEach(p=>{
-    p.angle+=p.speed;
-    p.mesh.position.x=Math.cos(p.angle)*p.distance;
-    p.mesh.position.z=Math.sin(p.angle)*p.distance;
+    p.angle += p.speed;
+    p.mesh.position.x = Math.cos(p.angle)*p.distance;
+    p.mesh.position.z = Math.sin(p.angle)*p.distance;
+
+    // Satellites rotation
+    p.satellites.forEach(s=>{
+      s.userData.angle += s.userData.speed;
+      s.position.x = Math.cos(s.userData.angle)*s.userData.radius;
+      s.position.z = Math.sin(s.userData.angle)*s.userData.radius;
+    });
   });
 
   // Rainbow sun
-  const t=Date.now()*0.001;
-  const idx=Math.floor(t)%rainbowColors.length;
+  const t = Date.now()*0.001;
+  const idx = Math.floor(t)%rainbowColors.length;
   sun.material.color.setHex(rainbowColors[idx]);
 
   renderer.render(scene,camera);
@@ -121,23 +153,37 @@ function animate(){
 animate();
 
 // Resize
-window.addEventListener('resize',()=>{
-  camera.aspect=window.innerWidth/window.innerHeight;
+window.addEventListener('resize', ()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth,window.innerHeight);
+  renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Audio M4A + MP3
-const audioInput=document.getElementById('audioInput');
-const audioPlayer=document.getElementById('audioPlayer');
+// Audio MP3/M4A
+const audioInput = document.getElementById('audioInput');
+const audioPlayer = document.getElementById('audioPlayer');
 audioInput.addEventListener('change', function(e){
-  const file=e.target.files[0];
+  const file = e.target.files[0];
   if(file){
-    const url=URL.createObjectURL(file);
-    audioPlayer.src=url;
+    const url = URL.createObjectURL(file);
+    audioPlayer.src = url;
     audioPlayer.play().catch(()=>{});
   }
 });
+
+// Load texture Earth nếu user nhập
+const textureEarthInput = document.getElementById('textureEarth');
+textureEarthInput.addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if(file){
+    const url = URL.createObjectURL(file);
+    const texture = textureLoader.load(url);
+    const earth = planets.find(p=>p.textureInput==='textureEarth');
+    if(earth) earth.mesh.material.map = texture;
+    if(earth) earth.mesh.material.needsUpdate = true;
+  }
+});
+
 </script>
 </body>
 </html>
