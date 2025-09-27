@@ -2,198 +2,149 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<title>Hệ Mặt Trời 3D WebGL</title>
+<title>Hệ Mặt Trời Pastel 3D</title>
 <style>
-html, body { margin:0; padding:0; overflow:hidden; background:black; font-family:Arial;}
-#musicControl, #textureControl{
-  position:absolute; left:20px; z-index:10;
-  background: rgba(0,0,0,0.5); padding:10px; border-radius:8px; color:white;
-}
-#musicControl{ top:20px;}
-#textureControl{ top:200px;}
-#textureControl input[type=file]{ display:block; margin-top:5px;}
-#applyTextureBtn{ margin-top:5px; padding:5px 10px; cursor:pointer;}
+  body {margin:0;overflow:hidden;background:black;font-family:sans-serif;}
+  #intro {
+    position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);
+    color:#ff77ff;font-size:40px;font-weight:bold;
+    text-shadow:0 0 10px #fff,0 0 20px #f0f,0 0 40px #f0f;
+    animation:blink 1.5s infinite;
+    z-index:10;cursor:pointer;
+  }
+  @keyframes blink {0%,100%{opacity:1;}50%{opacity:0.3;}}
+  #musicControl {
+    position:absolute;bottom:20px;left:20px;z-index:10;
+    background:rgba(0,0,0,0.5);padding:10px;border-radius:8px;color:white;
+  }
 </style>
 </head>
 <body>
+  <div id="intro">Chạm vào ↓</div>
+  <div id="musicControl">
+    <div>Chọn nhạc:</div>
+    <input type="file" id="audioInput" accept=".mp3,.m4a"/>
+    <audio id="audioPlayer" controls loop></audio>
+  </div>
 
-<div id="musicControl">
-  <div>Chọn nhạc (MP3/M4A):</div>
-  <input type="file" id="audioInput" accept=".mp3,.m4a"/>
-  <audio id="audioPlayer" controls></audio>
-</div>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/controls/OrbitControls.js"></script>
+  <script>
+    // Scene setup
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 5000);
+    camera.position.set(0,200,600);
 
-<div id="textureControl">
-  <div>Chọn texture hành tinh (tuỳ chọn):</div>
-  <input type="file" id="textureEarth" accept="image/*"/>
-  <button id="applyTextureBtn">Áp dụng texture</button>
-</div>
+    const renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
 
-<canvas id="glCanvas"></canvas>
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enabled = false;
 
-<script>
-// WebGL setup
-const canvas = document.getElementById('glCanvas');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    // Starfield
+    const numStars=6000;
+    const starGeo=new THREE.BufferGeometry();
+    const positions=new Float32Array(numStars*3);
+    for(let i=0;i<numStars;i++){
+      positions[i*3]=(Math.random()-0.5)*4000;
+      positions[i*3+1]=(Math.random()-0.5)*4000;
+      positions[i*3+2]=(Math.random()-0.5)*4000;
+    }
+    starGeo.setAttribute("position", new THREE.BufferAttribute(positions,3));
+    const starMat=new THREE.PointsMaterial({color:0xffffff,size:1});
+    scene.add(new THREE.Points(starGeo,starMat));
 
-if(!gl){
-  alert('WebGL không được hỗ trợ trên trình duyệt này!');
-}
+    // Lights
+    scene.add(new THREE.AmbientLight(0x555555));
+    const sunLight=new THREE.PointLight(0xffffff,2,2000);
+    scene.add(sunLight);
 
-// Basic shader
-const vertexShaderSrc = `
-attribute vec3 position;
-uniform mat4 uMatrix;
-void main(void){
-  gl_Position = uMatrix * vec4(position,1.0);
-}
-`;
+    // Rainbow Sun
+    const rainbowColors=[0xffadad,0xffd6a5,0xfdffb6,0xcaffbf,0x9bf6ff,0xa0c4ff,0xbdb2ff];
+    const sunGeo=new THREE.SphereGeometry(30,64,64);
+    const sunMat=new THREE.MeshPhongMaterial({color:0xffffaa,emissive:0xffee88,shininess:100});
+    const sun=new THREE.Mesh(sunGeo,sunMat);
+    scene.add(sun);
 
-const fragmentShaderSrc = `
-precision mediump float;
-uniform vec4 uColor;
-void main(void){
-  gl_FragColor = uColor;
-}
-`;
+    // Planets pastel
+    const planets=[];
+    const planetData=[
+      {size:6,distance:70,color:0xa4d4ff,speed:0.01,ring:false},
+      {size:5,distance:110,color:0xffa3a3,speed:0.008,ring:true},
+      {size:7,distance:160,color:0xcaffbf,speed:0.006,ring:false},
+      {size:9,distance:220,color:0x9bf6ff,speed:0.004,ring:true},
+    ];
+    planetData.forEach((p,i)=>{
+      const mat=new THREE.MeshPhongMaterial({color:p.color,shininess:80});
+      const mesh=new THREE.Mesh(new THREE.SphereGeometry(p.size,32,32),mat);
+      mesh.position.x=p.distance;
+      scene.add(mesh);
 
-function compileShader(src,type){
-  const shader = gl.createShader(type);
-  gl.shaderSource(shader, src);
-  gl.compileShader(shader);
-  if(!gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
-    console.error(gl.getShaderInfoLog(shader));
-    return null;
-  }
-  return shader;
-}
-
-const vertexShader = compileShader(vertexShaderSrc, gl.VERTEX_SHADER);
-const fragmentShader = compileShader(fragmentShaderSrc, gl.FRAGMENT_SHADER);
-
-const shaderProgram = gl.createProgram();
-gl.attachShader(shaderProgram, vertexShader);
-gl.attachShader(shaderProgram, fragmentShader);
-gl.linkProgram(shaderProgram);
-gl.useProgram(shaderProgram);
-
-const uMatrix = gl.getUniformLocation(shaderProgram,'uMatrix');
-const uColor = gl.getUniformLocation(shaderProgram,'uColor');
-
-// Matrices
-function identityMatrix(){ return [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]; }
-function perspective(fovy, aspect, near, far){
-  const f = 1.0 / Math.tan(fovy/2);
-  return [
-    f/aspect,0,0,0,
-    0,f,0,0,
-    0,0,(far+near)/(near-far),-1,
-    0,0,(2*far*near)/(near-far),0
-  ];
-}
-function multiplyMatrices(a,b){
-  const out = new Array(16).fill(0);
-  for(let i=0;i<4;i++){
-    for(let j=0;j<4;j++){
-      for(let k=0;k<4;k++){
-        out[i*4+j]+=a[i*4+k]*b[k*4+j];
+      let ring=null;
+      if(p.ring){
+        const ringGeo=new THREE.RingGeometry(p.size*1.4,p.size*2.0,64);
+        const ringMat=new THREE.MeshBasicMaterial({color:p.color,side:THREE.DoubleSide,transparent:true,opacity:0.7});
+        ring=new THREE.Mesh(ringGeo,ringMat);
+        ring.rotation.x=Math.PI/2;
+        mesh.add(ring);
       }
+
+      planets.push({mesh:mesh,angle:Math.random()*Math.PI*2,distance:p.distance,speed:p.speed});
+    });
+
+    // Intro zoom
+    let introActive=true;
+    const intro=document.getElementById("intro");
+    intro.addEventListener("click",()=>{
+      intro.style.display="none";
+      introActive=false;
+      controls.enabled=true;
+    });
+
+    // Animate
+    function animate(){
+      requestAnimationFrame(animate);
+
+      // Sun rainbow effect
+      const t=Date.now()*0.001;
+      sun.material.color.setHex(rainbowColors[Math.floor(t)%rainbowColors.length]);
+
+      // Planet orbits
+      planets.forEach(p=>{
+        p.angle+=p.speed;
+        p.mesh.position.x=Math.cos(p.angle)*p.distance;
+        p.mesh.position.z=Math.sin(p.angle)*p.distance;
+      });
+
+      // Camera zoom
+      if(introActive && camera.position.z>300){
+        camera.position.z-=1.5;
+        camera.position.y-=0.5;
+      }
+
+      renderer.render(scene,camera);
     }
-  }
-  return out;
-}
-function translationMatrix(x,y,z){ return [1,0,0,0,0,1,0,0,0,0,1,0,x,y,z,1]; }
-function rotationYMatrix(angle){
-  const c=Math.cos(angle), s=Math.sin(angle);
-  return [c,0,s,0,0,1,0,0,-s,0,c,0,0,0,0,1];
-}
+    animate();
 
-// Geometry: simple sphere approximation
-function createSphere(radius, segments){
-  const positions=[];
-  for(let i=0;i<=segments;i++){
-    const lat = i*Math.PI/segments;
-    for(let j=0;j<=segments;j++){
-      const lon = j*2*Math.PI/segments;
-      const x = radius*Math.sin(lat)*Math.cos(lon);
-      const y = radius*Math.cos(lat);
-      const z = radius*Math.sin(lat)*Math.sin(lon);
-      positions.push(x,y,z);
-    }
-  }
-  return new Float32Array(positions);
-}
+    // Resize
+    window.addEventListener("resize",()=>{
+      camera.aspect=window.innerWidth/window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
 
-// Create VBO
-function createVBO(data){
-  const buffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-  return buffer;
-}
-
-// Setup sphere for sun + earth
-const sunRadius = 3;
-const earthRadius = 1;
-const sunVBO = createVBO(createSphere(sunRadius,20));
-const earthVBO = createVBO(createSphere(earthRadius,20));
-const aPosition = gl.getAttribLocation(shaderProgram,'position');
-gl.enableVertexAttribArray(aPosition);
-gl.vertexAttribPointer(aPosition,3,gl.FLOAT,false,0,0);
-
-// Simple animation loop
-let angle=0;
-function animate(){
-  angle+=0.01;
-  gl.viewport(0,0,canvas.width,canvas.height);
-  gl.clearColor(0,0,0,1);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  gl.enable(gl.DEPTH_TEST);
-
-  const proj = perspective(Math.PI/4, canvas.width/canvas.height,0.1,100);
-  const view = translationMatrix(0,0,-20);
-
-  // Draw Sun
-  gl.bindBuffer(gl.ARRAY_BUFFER, sunVBO);
-  gl.vertexAttribPointer(aPosition,3,gl.FLOAT,false,0,0);
-  gl.uniform4fv(uColor,[1,0.8,0,1]);
-  let model = identityMatrix();
-  let mvp = multiplyMatrices(proj, multiplyMatrices(view, model));
-  gl.uniformMatrix4fv(uMatrix,false,new Float32Array(mvp));
-  gl.drawArrays(gl.POINTS,0,sunVBO.length/3);
-
-  // Draw Earth
-  gl.bindBuffer(gl.ARRAY_BUFFER, earthVBO);
-  gl.vertexAttribPointer(aPosition,3,gl.FLOAT,false,0,0);
-  gl.uniform4fv(uColor,[0.6,0.8,1,1]);
-  model = translationMatrix(Math.cos(angle)*10,0,Math.sin(angle)*10);
-  mvp = multiplyMatrices(proj, multiplyMatrices(view, model));
-  gl.uniformMatrix4fv(uMatrix,false,new Float32Array(mvp));
-  gl.drawArrays(gl.POINTS,0,earthVBO.length/3);
-
-  requestAnimationFrame(animate);
-}
-animate();
-
-// Audio
-const audioInput=document.getElementById('audioInput');
-const audioPlayer=document.getElementById('audioPlayer');
-audioInput.addEventListener('change',function(e){
-  const file = e.target.files[0];
-  if(file){
-    const url=URL.createObjectURL(file);
-    audioPlayer.src=url;
-    audioPlayer.play().catch(()=>{});
-  }
-});
-
-// Texture Earth
-document.getElementById('applyTextureBtn').addEventListener('click',()=>{
-  alert('WebGL thuần cần shader nâng cao để áp dụng texture. Phiên bản này minh hoạ 3D và glow đơn giản.');
-});
-
-</script>
+    // Audio
+    const audioInput=document.getElementById("audioInput");
+    const audioPlayer=document.getElementById("audioPlayer");
+    audioInput.addEventListener("change", e=>{
+      const file=e.target.files[0];
+      if(file){
+        const url=URL.createObjectURL(file);
+        audioPlayer.src=url;
+        audioPlayer.play().catch(()=>{});
+      }
+    });
+  </script>
 </body>
 </html>
