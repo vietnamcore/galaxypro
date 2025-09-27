@@ -2,186 +2,196 @@
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
-<title>Hệ Mặt Trời 3D Pastel + Vệ Tinh</title>
+<title>Hệ Mặt Trời 3D WebGL</title>
 <style>
 html, body { margin:0; padding:0; overflow:hidden; background:black; font-family:Arial;}
-#musicControl{
-    position:absolute; top:20px; left:20px; z-index:10;
-    background: rgba(0,0,0,0.5); padding:10px; border-radius:8px;color:white;
+#musicControl, #textureControl{
+  position:absolute; left:20px; z-index:10;
+  background: rgba(0,0,0,0.5); padding:10px; border-radius:8px; color:white;
 }
-#musicControl input[type=file]{ display:block; margin-top:5px;}
-#textureControl{
-    position:absolute; top:150px; left:20px; z-index:10;
-    background: rgba(0,0,0,0.5); padding:10px; border-radius:8px;color:white;
-}
+#musicControl{ top:20px;}
+#textureControl{ top:200px;}
 #textureControl input[type=file]{ display:block; margin-top:5px;}
+#applyTextureBtn{ margin-top:5px; padding:5px 10px; cursor:pointer;}
 </style>
 </head>
 <body>
 
 <div id="musicControl">
-  <div>Chọn file nhạc (MP3 hoặc M4A):</div>
+  <div>Chọn nhạc (MP3/M4A):</div>
   <input type="file" id="audioInput" accept=".mp3,.m4a"/>
   <audio id="audioPlayer" controls></audio>
 </div>
 
 <div id="textureControl">
-  <div>Chọn texture cho Trái Đất (tuỳ chọn):</div>
+  <div>Chọn texture hành tinh (tuỳ chọn):</div>
   <input type="file" id="textureEarth" accept="image/*"/>
+  <button id="applyTextureBtn">Áp dụng texture</button>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/controls/OrbitControls.js"></script>
+<canvas id="glCanvas"></canvas>
+
 <script>
+// WebGL setup
+const canvas = document.getElementById('glCanvas');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
 
-// Scene, Camera, Renderer
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 2000);
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
-
-// Controls
-const controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.enablePan=false;
-controls.enableZoom=true;
-
-// Starfield nhẹ
-const starGeo = new THREE.BufferGeometry();
-const starCount=1000;
-const positions=[];
-for(let i=0;i<starCount;i++){
-  positions.push((Math.random()-0.5)*2000);
-  positions.push((Math.random()-0.5)*2000);
-  positions.push((Math.random()-0.5)*2000);
+if(!gl){
+  alert('WebGL không được hỗ trợ trên trình duyệt này!');
 }
-starGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions,3));
-const starMat = new THREE.PointsMaterial({color:0xffffff,size:0.5});
-scene.add(new THREE.Points(starGeo,starMat));
 
-// Lights
-scene.add(new THREE.AmbientLight(0x888888));
-const sunLight = new THREE.PointLight(0xffffff,2,0); sunLight.position.set(0,0,0); scene.add(sunLight);
+// Basic shader
+const vertexShaderSrc = `
+attribute vec3 position;
+uniform mat4 uMatrix;
+void main(void){
+  gl_Position = uMatrix * vec4(position,1.0);
+}
+`;
 
-// Rainbow Sun
-const rainbowColors=[0xffadad,0xffd6a5,0xfdffb6,0xcaffbf,0x9bf6ff,0xa0c4ff,0xbdb2ff];
-const sunGeo = new THREE.SphereGeometry(3,64,64);
-const sunMat = new THREE.MeshBasicMaterial({color:0xfff1a4,emissive:0xffffaa});
-const sun = new THREE.Mesh(sunGeo,sunMat);
-scene.add(sun);
+const fragmentShaderSrc = `
+precision mediump float;
+uniform vec4 uColor;
+void main(void){
+  gl_FragColor = uColor;
+}
+`;
 
-// Planets pastel + optional texture + halo sprites
-const planets=[];
-const planetData=[
-  {name:'Mercury',size:0.5,distance:5,color:0xcfcfcf,satelliteCount:5},
-  {name:'Venus',size:0.7,distance:7,color:0xffe0ac,satelliteCount:6},
-  {name:'Earth',size:0.8,distance:10,color:0xa4d4ff,satelliteCount:8,textureInput:'textureEarth'},
-  {name:'Mars',size:0.6,distance:13,color:0xffa3a3,satelliteCount:4},
-  {name:'Jupiter',size:2,distance:18,color:0xffd1a4,satelliteCount:12},
-  {name:'Saturn',size:1.7,distance:23,color:0xe0c4ff,satelliteCount:10},
-  {name:'Uranus',size:1.3,distance:28,color:0xa0f0ff,satelliteCount:8},
-  {name:'Neptune',size:1.2,distance:32,color:0x8080ff,satelliteCount:6},
-];
-
-const textureLoader = new THREE.TextureLoader();
-
-planetData.forEach(p=>{
-  let mat;
-  if(p.textureInput){
-    mat = new THREE.MeshStandardMaterial({color:p.color}); // fallback pastel
-    // sẽ load texture từ input
-  }else{
-    mat = new THREE.MeshStandardMaterial({color:p.color});
+function compileShader(src,type){
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, src);
+  gl.compileShader(shader);
+  if(!gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
+    console.error(gl.getShaderInfoLog(shader));
+    return null;
   }
+  return shader;
+}
 
-  const geom = new THREE.SphereGeometry(p.size,32,32);
-  const mesh = new THREE.Mesh(geom,mat);
-  mesh.position.x = p.distance;
-  scene.add(mesh);
+const vertexShader = compileShader(vertexShaderSrc, gl.VERTEX_SHADER);
+const fragmentShader = compileShader(fragmentShaderSrc, gl.FRAGMENT_SHADER);
 
-  // Halo/satellite sprites
-  const satellites=[];
-  for(let i=0;i<p.satelliteCount;i++){
-    const sGeom = new THREE.SphereGeometry(p.size*0.1,8,8);
-    const sMat = new THREE.MeshBasicMaterial({color:0x88ffff});
-    const sat = new THREE.Mesh(sGeom,sMat);
-    const angle = Math.random()*Math.PI*2;
-    const radius = p.size + 0.5 + Math.random()*1;
-    sat.userData = {angle:angle, radius:radius, speed:0.01+Math.random()*0.02};
-    satellites.push(sat);
-    mesh.add(sat);
+const shaderProgram = gl.createProgram();
+gl.attachShader(shaderProgram, vertexShader);
+gl.attachShader(shaderProgram, fragmentShader);
+gl.linkProgram(shaderProgram);
+gl.useProgram(shaderProgram);
+
+const uMatrix = gl.getUniformLocation(shaderProgram,'uMatrix');
+const uColor = gl.getUniformLocation(shaderProgram,'uColor');
+
+// Matrices
+function identityMatrix(){ return [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]; }
+function perspective(fovy, aspect, near, far){
+  const f = 1.0 / Math.tan(fovy/2);
+  return [
+    f/aspect,0,0,0,
+    0,f,0,0,
+    0,0,(far+near)/(near-far),-1,
+    0,0,(2*far*near)/(near-far),0
+  ];
+}
+function multiplyMatrices(a,b){
+  const out = new Array(16).fill(0);
+  for(let i=0;i<4;i++){
+    for(let j=0;j<4;j++){
+      for(let k=0;k<4;k++){
+        out[i*4+j]+=a[i*4+k]*b[k*4+j];
+      }
+    }
   }
+  return out;
+}
+function translationMatrix(x,y,z){ return [1,0,0,0,0,1,0,0,0,0,1,0,x,y,z,1]; }
+function rotationYMatrix(angle){
+  const c=Math.cos(angle), s=Math.sin(angle);
+  return [c,0,s,0,0,1,0,0,-s,0,c,0,0,0,0,1];
+}
 
-  planets.push({mesh:mesh, satellites:satellites, angle:Math.random()*Math.PI*2, distance:p.distance, speed:0.01+Math.random()*0.01, textureInput:p.textureInput});
-});
+// Geometry: simple sphere approximation
+function createSphere(radius, segments){
+  const positions=[];
+  for(let i=0;i<=segments;i++){
+    const lat = i*Math.PI/segments;
+    for(let j=0;j<=segments;j++){
+      const lon = j*2*Math.PI/segments;
+      const x = radius*Math.sin(lat)*Math.cos(lon);
+      const y = radius*Math.cos(lat);
+      const z = radius*Math.sin(lat)*Math.sin(lon);
+      positions.push(x,y,z);
+    }
+  }
+  return new Float32Array(positions);
+}
 
-// Camera intro
-camera.position.set(0,50,100);
-let introProgress=0;
+// Create VBO
+function createVBO(data){
+  const buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+  return buffer;
+}
 
-// Animate
+// Setup sphere for sun + earth
+const sunRadius = 3;
+const earthRadius = 1;
+const sunVBO = createVBO(createSphere(sunRadius,20));
+const earthVBO = createVBO(createSphere(earthRadius,20));
+const aPosition = gl.getAttribLocation(shaderProgram,'position');
+gl.enableVertexAttribArray(aPosition);
+gl.vertexAttribPointer(aPosition,3,gl.FLOAT,false,0,0);
+
+// Simple animation loop
+let angle=0;
 function animate(){
+  angle+=0.01;
+  gl.viewport(0,0,canvas.width,canvas.height);
+  gl.clearColor(0,0,0,1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+
+  const proj = perspective(Math.PI/4, canvas.width/canvas.height,0.1,100);
+  const view = translationMatrix(0,0,-20);
+
+  // Draw Sun
+  gl.bindBuffer(gl.ARRAY_BUFFER, sunVBO);
+  gl.vertexAttribPointer(aPosition,3,gl.FLOAT,false,0,0);
+  gl.uniform4fv(uColor,[1,0.8,0,1]);
+  let model = identityMatrix();
+  let mvp = multiplyMatrices(proj, multiplyMatrices(view, model));
+  gl.uniformMatrix4fv(uMatrix,false,new Float32Array(mvp));
+  gl.drawArrays(gl.POINTS,0,sunVBO.length/3);
+
+  // Draw Earth
+  gl.bindBuffer(gl.ARRAY_BUFFER, earthVBO);
+  gl.vertexAttribPointer(aPosition,3,gl.FLOAT,false,0,0);
+  gl.uniform4fv(uColor,[0.6,0.8,1,1]);
+  model = translationMatrix(Math.cos(angle)*10,0,Math.sin(angle)*10);
+  mvp = multiplyMatrices(proj, multiplyMatrices(view, model));
+  gl.uniformMatrix4fv(uMatrix,false,new Float32Array(mvp));
+  gl.drawArrays(gl.POINTS,0,earthVBO.length/3);
+
   requestAnimationFrame(animate);
-
-  // Zoom intro
-  if(introProgress<1){
-    camera.position.lerp(new THREE.Vector3(0,10,40),0.01);
-    introProgress+=0.005;
-  }
-
-  // Planets orbit
-  planets.forEach(p=>{
-    p.angle += p.speed;
-    p.mesh.position.x = Math.cos(p.angle)*p.distance;
-    p.mesh.position.z = Math.sin(p.angle)*p.distance;
-
-    // Satellites rotation
-    p.satellites.forEach(s=>{
-      s.userData.angle += s.userData.speed;
-      s.position.x = Math.cos(s.userData.angle)*s.userData.radius;
-      s.position.z = Math.sin(s.userData.angle)*s.userData.radius;
-    });
-  });
-
-  // Rainbow sun
-  const t = Date.now()*0.001;
-  const idx = Math.floor(t)%rainbowColors.length;
-  sun.material.color.setHex(rainbowColors[idx]);
-
-  renderer.render(scene,camera);
 }
 animate();
 
-// Resize
-window.addEventListener('resize', ()=>{
-  camera.aspect = window.innerWidth/window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
-// Audio MP3/M4A
-const audioInput = document.getElementById('audioInput');
-const audioPlayer = document.getElementById('audioPlayer');
-audioInput.addEventListener('change', function(e){
+// Audio
+const audioInput=document.getElementById('audioInput');
+const audioPlayer=document.getElementById('audioPlayer');
+audioInput.addEventListener('change',function(e){
   const file = e.target.files[0];
   if(file){
-    const url = URL.createObjectURL(file);
-    audioPlayer.src = url;
+    const url=URL.createObjectURL(file);
+    audioPlayer.src=url;
     audioPlayer.play().catch(()=>{});
   }
 });
 
-// Load texture Earth nếu user nhập
-const textureEarthInput = document.getElementById('textureEarth');
-textureEarthInput.addEventListener('change', function(e){
-  const file = e.target.files[0];
-  if(file){
-    const url = URL.createObjectURL(file);
-    const texture = textureLoader.load(url);
-    const earth = planets.find(p=>p.textureInput==='textureEarth');
-    if(earth) earth.mesh.material.map = texture;
-    if(earth) earth.mesh.material.needsUpdate = true;
-  }
+// Texture Earth
+document.getElementById('applyTextureBtn').addEventListener('click',()=>{
+  alert('WebGL thuần cần shader nâng cao để áp dụng texture. Phiên bản này minh hoạ 3D và glow đơn giản.');
 });
 
 </script>
